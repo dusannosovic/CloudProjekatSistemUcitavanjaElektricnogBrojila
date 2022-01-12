@@ -1,12 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Fabric;
+using System.Fabric.Description;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Common;
 using Microsoft.ServiceFabric.Data.Collections;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
+using Microsoft.ServiceFabric.Services.Communication.Wcf;
+using Microsoft.ServiceFabric.Services.Communication.Wcf.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Table;
+using Spire.Email;
+using Spire.Email.Pop3;
 
 namespace CurrentmeterSaver
 {
@@ -15,9 +24,10 @@ namespace CurrentmeterSaver
     /// </summary>
     internal sealed class CurrentmeterSaver : StatefulService
     {
+        CurrentMeterSaverService currentMeterSaverService;
         public CurrentmeterSaver(StatefulServiceContext context)
             : base(context)
-        { }
+        { currentMeterSaverService = new CurrentMeterSaverService(this.StateManager); }
 
         /// <summary>
         /// Optional override to create listeners (e.g., HTTP, Service Remoting, WCF, etc.) for this service replica to handle client or user requests.
@@ -28,9 +38,25 @@ namespace CurrentmeterSaver
         /// <returns>A collection of listeners.</returns>
         protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
         {
-            return new ServiceReplicaListener[0];
+            return new[] { new ServiceReplicaListener(context => this.CreateInternalListener(context)) };
         }
+        private ICommunicationListener CreateInternalListener(ServiceContext context)
+        {
 
+            EndpointResourceDescription internalEndpoint = context.CodePackageActivationContext.GetEndpoint("ProcessingServiceEndpoint");
+            string uriPrefix = String.Format(
+                   "{0}://+:{1}/{2}/{3}-{4}/",
+                   internalEndpoint.Protocol,
+                   internalEndpoint.Port,
+                   context.PartitionId,
+                   context.ReplicaOrInstanceId,
+                   Guid.NewGuid());
+
+            string nodeIP = FabricRuntime.GetNodeContext().IPAddressOrFQDN;
+
+            string uriPublished = uriPrefix.Replace("+", nodeIP);
+            return new WcfCommunicationListener<ICurrentMeterSaverService>(context, currentMeterSaverService , WcfUtility.CreateTcpListenerBinding(), uriPrefix);
+        }
         /// <summary>
         /// This is the main entry point for your service replica.
         /// This method executes when this replica of your service becomes primary and has write status.
@@ -42,7 +68,8 @@ namespace CurrentmeterSaver
             //       or remove this RunAsync override if it's not needed in your service.
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
-
+            var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+            await ReadFromTable();
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -60,9 +87,121 @@ namespace CurrentmeterSaver
                     // discarded, and nothing is saved to the secondary replicas.
                     await tx.CommitAsync();
                 }
+                await MailService();
+                AddToTableStorage();
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            }
 
-                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+
+        public async Task MailService()
+        {
+            try
+            {
+                Pop3Client pop = new Pop3Client();
+                pop.Host = "pop.gmail.com";
+                pop.Username = "currentmetermailservice@gmail.com";
+                pop.Password = "Bs3265ca";
+                pop.Port = 995;
+                pop.EnableSsl = true;
+                pop.Connect();
+                int numberofMails = pop.GetMessageCount();
+                var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+                using (var tx = this.StateManager.CreateTransaction())
+                {
+                    for (int i = 1; i <= numberofMails; i++)
+                    {
+                        MailMessage message = pop.GetMessage(i);
+                        string[] mail = message.BodyText.Split(';');
+                        try
+                        {
+                            CurrentMeter currentMeter = new CurrentMeter();
+                            currentMeter.ID = mail[0];
+                            currentMeter.CurrentMeterID = mail[1];
+                            currentMeter.Location = mail[2];
+                            currentMeter.OldState = Convert.ToDouble(mail[3]);
+                            currentMeter.NewState = Convert.ToDouble(mail[4]);
+                            await CurrentMeterActiveData.TryAddAsync(tx, currentMeter.ID, currentMeter);
+                        }
+                        catch
+                        {
+                            ServiceEventSource.Current.Message("Email servis trenutno ne radi");
+                        }
+                    }
+                    await tx.CommitAsync();
+                }
+                pop.DeleteAllMessages();
+                pop.Disconnect();
+            }
+            catch
+            {
+                ServiceEventSource.Current.Message("Email servis trenutno ne radi");
             }
         }
+        public async Task ReadFromTable()
+        {
+            try
+            {
+                CloudStorageAccount _storageAccount;
+                CloudTable _table;
+                string a = ConfigurationManager.AppSettings["DataConnectionString"];
+                _storageAccount = CloudStorageAccount.Parse(a);
+                CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
+                _table = tableClient.GetTableReference("CountTableStorage");
+                var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "ActiveCurrentMeterData" select g;
+                if (results.ToList().Count > 0)
+                {
+                    var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+                    using (var tx = this.StateManager.CreateTransaction())
+                    {
+                        foreach (CurrentMeterEntity currentMeterEntity in results.ToList())
+                        {
+                            await CurrentMeterActiveData.TryAddAsync(tx, currentMeterEntity.RowKey, new CurrentMeter(currentMeterEntity.RowKey, currentMeterEntity.CurrentMeterID, currentMeterEntity.Location, currentMeterEntity.OldState, currentMeterEntity.NewState));
+                        }
+                        await tx.CommitAsync();
+                    }
+                }
+            }
+            catch
+            {
+                ServiceEventSource.Current.Message("Nije napravljen cloud");
+            }
+        }
+        public async Task AddToTableStorage()
+        {
+            List<CurrentMeterEntity> currentMeterEntities = new List<CurrentMeterEntity>();
+            var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+            
+            using(var tx = this.StateManager.CreateTransaction())
+            {
+                var enumerator = (await CurrentMeterActiveData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
+                while(await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                {
+                    CurrentMeter currentMeter = (await CurrentMeterActiveData.TryGetValueAsync(tx, enumerator.Current.Key)).Value;
+                    currentMeterEntities.Add(new CurrentMeterEntity(currentMeter.ID, currentMeter.CurrentMeterID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState));
+                }
+            }
+
+            try
+            {
+                CloudStorageAccount _storageAccount;
+                CloudTable _table;
+                string a = ConfigurationManager.AppSettings["DataConnectionString"];
+                _storageAccount = CloudStorageAccount.Parse(a);
+                CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
+                _table = tableClient.GetTableReference("CountTableStorage");
+                foreach (CurrentMeterEntity currentMeterEntity in currentMeterEntities)
+                {
+                    TableOperation insertOperation = TableOperation.InsertOrReplace(currentMeterEntity);
+                    _table.Execute(insertOperation);
+                }
+            }
+            catch
+            {
+                ServiceEventSource.Current.Message("Nije napravljen cloud");
+            }
+        }
+
+
     }
 }

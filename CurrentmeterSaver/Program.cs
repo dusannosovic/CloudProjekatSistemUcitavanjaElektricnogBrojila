@@ -1,10 +1,10 @@
-using Microsoft.ServiceFabric.Services.Runtime;
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.ServiceFabric.Services.Runtime;
 
-namespace Client
+namespace CurrentmeterSaver
 {
     internal static class Program
     {
@@ -20,12 +20,12 @@ namespace Client
                 // When Service Fabric creates an instance of this service type,
                 // an instance of the class is created in this host process.
 
-                ServiceRuntime.RegisterServiceAsync("ClientType",
-                    context => new Client(context)).GetAwaiter().GetResult();
+                ServiceRuntime.RegisterServiceAsync("CurrentmeterSaverType",
+                    context => new CurrentmeterSaver(context)).GetAwaiter().GetResult();
 
-                ServiceEventSource.Current.ServiceTypeRegistered(Process.GetCurrentProcess().Id, typeof(Client).Name);
+                ServiceEventSource.Current.ServiceTypeRegistered(Process.GetCurrentProcess().Id, typeof(CurrentmeterSaver).Name);
 
-                // Prevents this host process from terminating so services keeps running. 
+                // Prevents this host process from terminating so services keep running.
                 Thread.Sleep(Timeout.Infinite);
             }
             catch (Exception e)

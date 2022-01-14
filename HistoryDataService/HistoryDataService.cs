@@ -7,27 +7,28 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Common;
+using CurrentmeterSaver;
 using Microsoft.ServiceFabric.Data.Collections;
+using Microsoft.ServiceFabric.Services.Client;
+using Microsoft.ServiceFabric.Services.Communication.Client;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Communication.Wcf;
+using Microsoft.ServiceFabric.Services.Communication.Wcf.Client;
 using Microsoft.ServiceFabric.Services.Communication.Wcf.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
-using Spire.Email;
-using Spire.Email.Pop3;
 
-namespace CurrentmeterSaver
+namespace HistoryDataService
 {
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// </summary>
-    internal sealed class CurrentmeterSaver : StatefulService
+    internal sealed class HistoryDataService : StatefulService
     {
-        CurrentMeterSaverService currentMeterSaverService;
-        public CurrentmeterSaver(StatefulServiceContext context)
+        public HistoryDataService(StatefulServiceContext context)
             : base(context)
-        { currentMeterSaverService = new CurrentMeterSaverService(this.StateManager); }
+        { }
 
         /// <summary>
         /// Optional override to create listeners (e.g., HTTP, Service Remoting, WCF, etc.) for this service replica to handle client or user requests.
@@ -55,8 +56,9 @@ namespace CurrentmeterSaver
             string nodeIP = FabricRuntime.GetNodeContext().IPAddressOrFQDN;
 
             string uriPublished = uriPrefix.Replace("+", nodeIP);
-            return new WcfCommunicationListener<ICurrentMeterSaverService>(context, currentMeterSaverService , WcfUtility.CreateTcpListenerBinding(), uriPrefix);
+            return new WcfCommunicationListener<IHistoryData>(context, new HistoryData(), WcfUtility.CreateTcpListenerBinding(), uriPrefix);
         }
+
         /// <summary>
         /// This is the main entry point for your service replica.
         /// This method executes when this replica of your service becomes primary and has write status.
@@ -68,8 +70,7 @@ namespace CurrentmeterSaver
             //       or remove this RunAsync override if it's not needed in your service.
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
-            var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
-            await ReadFromTable();
+            DateTime dt = DateTime.Now;
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -87,15 +88,28 @@ namespace CurrentmeterSaver
                     // discarded, and nothing is saved to the secondary replicas.
                     await tx.CommitAsync();
                 }
-                //await MailService();
-                AddToTableStorage();
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                if (dt.Day == 1)
+                {
+                   bool tempbool = await GetDataFromCurrentMeter();
+                }
+                dt = dt.AddDays(1);
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
             }
-
         }
 
-        public async Task ReadFromTable()
+        async Task<bool> GetDataFromCurrentMeter()
         {
+            FabricClient fabricClient = new FabricClient();
+            int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"))).Count;
+            var binding = WcfUtility.CreateTcpClientBinding();
+            int index = 0;
+            //for (int i = 0; i < partitionsNumber; i++)
+            //{
+            ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>>(
+                new WcfCommunicationClientFactory<ICurrentMeterSaverService>(clientBinding: binding),
+                new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
+                new ServicePartitionKey(0));
+            List<CurrentMeter> currentMeters = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.GetAllActiveData());
             try
             {
                 CloudStorageAccount _storageAccount;
@@ -103,61 +117,22 @@ namespace CurrentmeterSaver
                 string a = ConfigurationManager.AppSettings["DataConnectionString"];
                 _storageAccount = CloudStorageAccount.Parse(a);
                 CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-                _table = tableClient.GetTableReference("CountTableStorage");
-                var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "ActiveCurrentMeterData" select g;
-                if (results.ToList().Count > 0)
+                _table = tableClient.GetTableReference("HistoryDataStorage");
+                foreach (CurrentMeter currentMeter in currentMeters)
                 {
-                    var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
-                    using (var tx = this.StateManager.CreateTransaction())
-                    {
-                        foreach (CurrentMeterEntity currentMeterEntity in results.ToList())
-                        {
-                            await CurrentMeterActiveData.TryAddAsync(tx, currentMeterEntity.RowKey, new CurrentMeter(currentMeterEntity.RowKey, currentMeterEntity.CurrentMeterID, currentMeterEntity.Location, currentMeterEntity.OldState, currentMeterEntity.NewState));
-                        }
-                        await tx.CommitAsync();
-                    }
-                }
-            }
-            catch
-            {
-                ServiceEventSource.Current.Message("Nije napravljen cloud");
-            }
-        }
-        public async Task AddToTableStorage()
-        {
-            List<CurrentMeterEntity> currentMeterEntities = new List<CurrentMeterEntity>();
-            var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
-            
-            using(var tx = this.StateManager.CreateTransaction())
-            {
-                var enumerator = (await CurrentMeterActiveData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
-                while(await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
-                {
-                    CurrentMeter currentMeter = (await CurrentMeterActiveData.TryGetValueAsync(tx, enumerator.Current.Key)).Value;
-                    currentMeterEntities.Add(new CurrentMeterEntity(currentMeter.ID, currentMeter.CurrentMeterID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState));
-                }
-            }
-
-            try
-            {
-                CloudStorageAccount _storageAccount;
-                CloudTable _table;
-                string a = ConfigurationManager.AppSettings["DataConnectionString"];
-                _storageAccount = CloudStorageAccount.Parse(a);
-                CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-                _table = tableClient.GetTableReference("CountTableStorage");
-                foreach (CurrentMeterEntity currentMeterEntity in currentMeterEntities)
-                {
+                    CurrentMeterEntity currentMeterEntity = new CurrentMeterEntity(currentMeter.ID, currentMeter.CurrentMeterID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState);
                     TableOperation insertOperation = TableOperation.InsertOrReplace(currentMeterEntity);
                     _table.Execute(insertOperation);
                 }
+
+                bool tempBool = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.DeleteAllActiveData());
             }
             catch
             {
                 ServiceEventSource.Current.Message("Nije napravljen cloud");
             }
+            return true;
         }
-
 
     }
 }

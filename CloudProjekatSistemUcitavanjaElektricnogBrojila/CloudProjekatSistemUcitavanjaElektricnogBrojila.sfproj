@@ -36,6 +36,7 @@
       <ServiceLaunchUrl>http://{MachineName}:{ServicePort}/</ServiceLaunchUrl>
     </ProjectReference>
     <ProjectReference Include="..\CurrentmeterSaver\CurrentmeterSaver.csproj" />
+    <ProjectReference Include="..\HistoryDataService\HistoryDataService.csproj" />
     <ProjectReference Include="..\MailService\MailService.csproj" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />

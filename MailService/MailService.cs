@@ -153,7 +153,9 @@ namespace MailService
                             await CurrentMeterActiveData.TryRemoveAsync(tx, enumerator.Current.Key);
                         }
                     }
+                    await tx.CommitAsync();
                 }
+
             }
             catch
             {

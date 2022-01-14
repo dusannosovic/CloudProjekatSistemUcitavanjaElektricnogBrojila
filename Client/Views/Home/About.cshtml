@@ -1,7 +1,27 @@
-﻿@{
-    ViewData["Title"] = "About";
-}
-<h2>@ViewData["Title"]</h2>
-<h3>@ViewData["Message"]</h3>
+﻿
 
-<p>Use this area to provide additional information.</p>
+@model IEnumerable<Common.CurrentMeter>
+
+@{
+    ViewBag.Title = "Index";
+}
+
+<table class="table table-bordered table-responsive table-hover">
+    <tr>
+        <th>Id </th>
+        <th>Id brojila</th>
+        <th>Lokacija</th>
+        <th>Staro stanje</th>
+        <th>Novo stanje</th>
+    </tr>
+    @foreach (var d in Model)
+    {
+        <tr>
+            <td>@d.ID</td>
+            <td>@d.CurrentMeterID</td>
+            <td>@d.Location</td>
+            <td>@d.OldState</td>
+            <td>@d.NewState</td>
+        </tr>
+    }
+</table> 

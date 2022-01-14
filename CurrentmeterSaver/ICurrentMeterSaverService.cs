@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Common;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.ServiceModel;
@@ -12,5 +13,9 @@ namespace CurrentmeterSaver
     {
         [OperationContract]
         Task<bool> AddCurrentMeter(string id, string currentMeterId, string location, double oldState, double newState);
+        [OperationContract]
+        Task<List<CurrentMeter>> GetAllActiveData();
+        [OperationContract]
+        Task<bool> DeleteAllActiveData();
     }
 }

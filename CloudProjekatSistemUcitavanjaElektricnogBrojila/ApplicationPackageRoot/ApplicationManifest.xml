@@ -50,22 +50,22 @@
          The attribute ServiceTypeName below must match the name defined in the imported ServiceManifest.xml file. -->
     <Service Name="Broker" ServicePackageActivationMode="ExclusiveProcess">
       <StatefulService ServiceTypeName="BrokerType" TargetReplicaSetSize="[Broker_TargetReplicaSetSize]" MinReplicaSetSize="[Broker_MinReplicaSetSize]">
-        <UniformInt64Partition PartitionCount="[Broker_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+        <UniformInt64Partition PartitionCount="[Broker_PartitionCount]" LowKey="0" HighKey="1" />
       </StatefulService>
     </Service>
     <Service Name="HistoryDataService" ServicePackageActivationMode="ExclusiveProcess">
       <StatefulService ServiceTypeName="HistoryDataServiceType" TargetReplicaSetSize="[HistoryDataService_TargetReplicaSetSize]" MinReplicaSetSize="[HistoryDataService_MinReplicaSetSize]">
-        <UniformInt64Partition PartitionCount="[HistoryDataService_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+        <UniformInt64Partition PartitionCount="[HistoryDataService_PartitionCount]" LowKey="0" HighKey="1" />
       </StatefulService>
     </Service>
     <Service Name="MailService" ServicePackageActivationMode="ExclusiveProcess">
       <StatefulService ServiceTypeName="MailServiceType" TargetReplicaSetSize="[MailService_TargetReplicaSetSize]" MinReplicaSetSize="[MailService_MinReplicaSetSize]">
-        <UniformInt64Partition PartitionCount="[MailService_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+        <UniformInt64Partition PartitionCount="[MailService_PartitionCount]" LowKey="0" HighKey="1" />
       </StatefulService>
     </Service>
     <Service Name="CurrentmeterSaver" ServicePackageActivationMode="ExclusiveProcess">
       <StatefulService ServiceTypeName="CurrentmeterSaverType" TargetReplicaSetSize="[CurrentmeterSaver_TargetReplicaSetSize]" MinReplicaSetSize="[CurrentmeterSaver_MinReplicaSetSize]">
-        <UniformInt64Partition PartitionCount="[CurrentmeterSaver_PartitionCount]" LowKey="-9223372036854775808" HighKey="9223372036854775807" />
+        <UniformInt64Partition PartitionCount="[CurrentmeterSaver_PartitionCount]" LowKey="0" HighKey="1" />
       </StatefulService>
     </Service>
     <Service Name="Client" ServicePackageActivationMode="ExclusiveProcess">

@@ -11,6 +11,10 @@ using Microsoft.ServiceFabric.Services.Communication.AspNetCore;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
 using Microsoft.ServiceFabric.Data;
+using Microsoft.ServiceFabric.Services.Communication.Wcf;
+using Microsoft.ServiceFabric.Services.Communication.Wcf.Runtime;
+using System.Globalization;
+using Common;
 
 namespace Client
 {
@@ -46,8 +50,28 @@ namespace Client
                                     .UseServiceFabricIntegration(listener, ServiceFabricIntegrationOptions.None)
                                     .UseUrls(url)
                                     .Build();
-                    }))
+                    }),"ServiceEndpoint"),
+                new ServiceInstanceListener(context => this.CreateWcfCommunicationListener(context),"WebCommunication")
             };
+        }
+        private ICommunicationListener CreateWcfCommunicationListener(StatelessServiceContext context)
+        {
+            string host = context.NodeContext.IPAddressOrFQDN;
+
+            var endpointConfig = context.CodePackageActivationContext.GetEndpoint("WebCommunication");
+            int port = endpointConfig.Port;
+            var scheme = endpointConfig.Protocol.ToString();
+            string uri = string.Format(CultureInfo.InvariantCulture, "net.{0}://{1}:{2}/WebCommunication", scheme, host, port);
+
+            var listener = new WcfCommunicationListener<IClientService>(
+                serviceContext: context,
+                wcfServiceObject: new ClientService(),
+                listenerBinding: WcfUtility.CreateTcpListenerBinding(maxMessageSize: 1024 * 1024 * 1024),
+                address: new System.ServiceModel.EndpointAddress(uri)
+                );
+
+            ServiceEventSource.Current.Message("Napravljen listener!! ");
+            return listener;
         }
     }
 }

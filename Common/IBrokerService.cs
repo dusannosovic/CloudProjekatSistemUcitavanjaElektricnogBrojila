@@ -5,7 +5,7 @@ using System.ServiceModel;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Broker
+namespace Common
 {
     [ServiceContract]
     public interface IBrokerService

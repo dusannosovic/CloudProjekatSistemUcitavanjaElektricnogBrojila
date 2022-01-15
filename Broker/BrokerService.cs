@@ -1,8 +1,15 @@
-﻿using Microsoft.ServiceFabric.Data;
+﻿using Common;
+using Microsoft.ServiceFabric.Data;
 using Microsoft.ServiceFabric.Data.Collections;
+using Microsoft.ServiceFabric.Services.Client;
+using Microsoft.ServiceFabric.Services.Communication.Client;
+using Microsoft.ServiceFabric.Services.Communication.Wcf;
+using Microsoft.ServiceFabric.Services.Communication.Wcf.Client;
 using System;
 using System.Collections.Generic;
+using System.Fabric;
 using System.Linq;
+using System.ServiceModel;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -26,11 +33,20 @@ namespace Broker
             Subscribed = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
             try
             {
-                using(var tx = this.StateManager.CreateTransaction())
+                using (var tx = this.StateManager.CreateTransaction())
                 {
-                    if((await Subscribed.TryGetValueAsync(tx, topic)).Value)
+                    if ((await Subscribed.TryGetValueAsync(tx, topic)).Value)
                     {
-
+                        var myBinding = new NetTcpBinding(SecurityMode.None);
+                        var myEndpoint = new EndpointAddress("net.tcp://localhost:52811/WebCommunication");
+                    
+                        using (var myChannelFactory = new ChannelFactory<IClientService>(myBinding, myEndpoint))
+                        {
+                            IClientService clientService = null;
+                            clientService = myChannelFactory.CreateChannel();
+                            clientService.Publish();
+                            myChannelFactory.Close();
+                        }
                     }
                 }
             }

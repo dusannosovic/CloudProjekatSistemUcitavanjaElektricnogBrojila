@@ -37,6 +37,7 @@ namespace CurrentmeterSaver
             CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
             using(var tx = this.StateManager.CreateTransaction())
             {
+                Random random = new Random();
                 await CurrentMeterDict.TryAddAsync(tx, id, new CurrentMeter(id, currentMeterId, location, oldState, newState));
                 await tx.CommitAsync();
                 FabricClient fabricClient = new FabricClient();
@@ -48,7 +49,7 @@ namespace CurrentmeterSaver
                 ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
                     new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
                     new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
-                    new ServicePartitionKey(0));
+                    new ServicePartitionKey(random.Next(partitionsNumber)));
                 bool tempPublish = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.Publish("active"));
             }
             return true;

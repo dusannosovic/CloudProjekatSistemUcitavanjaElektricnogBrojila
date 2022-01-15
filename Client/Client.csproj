@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Broker\Broker.csproj" />
+    <ProjectReference Include="..\Common\Common.csproj" />
     <ProjectReference Include="..\CurrentmeterSaver\CurrentmeterSaver.csproj" />
     <ProjectReference Include="..\HistoryDataService\HistoryDataService.csproj" />
   </ItemGroup>

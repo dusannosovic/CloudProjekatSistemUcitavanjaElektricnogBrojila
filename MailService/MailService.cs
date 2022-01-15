@@ -128,6 +128,7 @@ namespace MailService
         {
             try
             {
+                Random random = new Random();
                 var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
                 FabricClient fabricClient = new FabricClient();
                 int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"))).Count;
@@ -138,7 +139,7 @@ namespace MailService
                 ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>>(
                     new WcfCommunicationClientFactory<ICurrentMeterSaverService>(clientBinding: binding),
                     new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
-                    new ServicePartitionKey(0));
+                    new ServicePartitionKey(random.Next(partitionsNumber)));
                 //var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
                 using (var tx = this.StateManager.CreateTransaction())
                 {

@@ -69,6 +69,7 @@ namespace CurrentmeterSaver
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
             var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
             await ReadFromTable();
             while (true)
             {
@@ -155,6 +156,15 @@ namespace CurrentmeterSaver
             catch
             {
                 ServiceEventSource.Current.Message("Nije napravljen cloud");
+            }
+        }
+        public async void AddToDictionary()
+        {
+            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
+            using(var tx = this.StateManager.CreateTransaction())
+            {
+                await Subscribe.TryAddAsync(tx, "subscribed", false);
+                await tx.CommitAsync();
             }
         }
 

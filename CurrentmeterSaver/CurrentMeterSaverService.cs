@@ -1,11 +1,17 @@
-﻿using Common;
+﻿using Broker;
+using Common;
 using Microsoft.ServiceFabric.Data;
 using Microsoft.ServiceFabric.Data.Collections;
+using Microsoft.ServiceFabric.Services.Client;
+using Microsoft.ServiceFabric.Services.Communication.Client;
+using Microsoft.ServiceFabric.Services.Communication.Wcf;
+using Microsoft.ServiceFabric.Services.Communication.Wcf.Client;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Fabric;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,6 +21,7 @@ namespace CurrentmeterSaver
     class CurrentMeterSaverService : ICurrentMeterSaverService
     {
         IReliableDictionary<string, CurrentMeter> CurrentMeterDict;
+        IReliableDictionary<string, bool> Subscribed;
         IReliableStateManager StateManager;
 
         public CurrentMeterSaverService()
@@ -32,6 +39,17 @@ namespace CurrentmeterSaver
             {
                 await CurrentMeterDict.TryAddAsync(tx, id, new CurrentMeter(id, currentMeterId, location, oldState, newState));
                 await tx.CommitAsync();
+                FabricClient fabricClient = new FabricClient();
+                int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+                var binding = WcfUtility.CreateTcpClientBinding();
+                int index = 0;
+                //for (int i = 0; i < partitionsNumber; i++)
+                //{
+                ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                    new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                    new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                    new ServicePartitionKey(0));
+                bool tempPublish = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.Publish("active"));
             }
             return true;
         }

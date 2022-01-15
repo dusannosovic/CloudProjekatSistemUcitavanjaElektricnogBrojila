@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Common;
+using Microsoft.ServiceFabric.Data;
+using Microsoft.ServiceFabric.Data.Collections;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
@@ -12,6 +14,17 @@ namespace HistoryDataService
 {
     public class HistoryData : IHistoryData
     {
+        IReliableDictionary<string,bool> Subscribed;
+        IReliableStateManager StateManager;
+
+        public HistoryData()
+        {
+
+        }
+        public HistoryData(IReliableStateManager stateManager)
+        {
+            StateManager = stateManager;
+        }
         public List<CurrentMeter> GetAllHistoricalData()
         {
             List<CurrentMeter> currentMeters = new List<CurrentMeter>();

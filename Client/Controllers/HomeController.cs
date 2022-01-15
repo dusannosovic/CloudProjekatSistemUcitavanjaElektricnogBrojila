@@ -13,6 +13,7 @@ using Microsoft.ServiceFabric.Services.Client;
 using CurrentmeterSaver;
 using Common;
 using HistoryDataService;
+using Broker;
 
 namespace Client.Controllers
 {
@@ -37,12 +38,28 @@ namespace Client.Controllers
                 new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
                 new ServicePartitionKey(0));
 
+            //----------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+            FabricClient fabricClient1 = new FabricClient();
+            int partitionsNumber1 = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+            var binding1 = WcfUtility.CreateTcpClientBinding();
+            int index1 = 0;
+            //for (int i = 0; i < partitionsNumber; i++)
+            //{
+            ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                new ServicePartitionKey(0));
+            //---------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+            bool b = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Unsubscribe("active"));
+            bool c = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Unsubscribe("history"));
+
             bool a = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.AddCurrentMeter(id,idCurrentMeter,location,oldState,newState));
             return View("Index");
         }
         public async Task<IActionResult> About()
         {
             List<CurrentMeter> currentMeters = new List<CurrentMeter>();
+
             FabricClient fabricClient = new FabricClient();
             int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"))).Count;
             var binding = WcfUtility.CreateTcpClientBinding();
@@ -53,7 +70,21 @@ namespace Client.Controllers
                 new WcfCommunicationClientFactory<ICurrentMeterSaverService>(clientBinding: binding),
                 new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
                 new ServicePartitionKey(0));
+            //----------------------------------------------------------------------------------------------------------------------------------------------------------------------//
+            FabricClient fabricClient1 = new FabricClient();
+            int partitionsNumber1 = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+            var binding1 = WcfUtility.CreateTcpClientBinding();
+            int index1 = 0;
+            //for (int i = 0; i < partitionsNumber; i++)
+            //{
+            ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                new ServicePartitionKey(0));
+            //---------------------------------------------------------------------------------------------------------------------------------------------------------------------//
 
+            bool a = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Subscribe("active"));
+            bool c = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Unsubscribe("history"));
             currentMeters = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.GetAllActiveData());
 
             return View(currentMeters);
@@ -72,9 +103,20 @@ namespace Client.Controllers
                 new WcfCommunicationClientFactory<IHistoryData>(clientBinding: binding),
                 new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/HistoryDataService"),
                 new ServicePartitionKey(0));
+            FabricClient fabricClient1 = new FabricClient();
+            int partitionsNumber1 = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+            var binding1 = WcfUtility.CreateTcpClientBinding();
+            int index1 = 0;
+            //for (int i = 0; i < partitionsNumber; i++)
+            //{
+            ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                new ServicePartitionKey(0));
 
+            bool a = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Subscribe("history"));
+            bool c = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Unsubscribe("active"));
             currentMeters =  servicePartitionClient.InvokeWithRetry(client => client.Channel.GetAllHistoricalData());
-
             return View(currentMeters);
         }
 

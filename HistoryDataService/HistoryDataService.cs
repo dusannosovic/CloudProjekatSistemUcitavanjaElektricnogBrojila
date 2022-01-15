@@ -6,6 +6,7 @@ using System.Fabric.Description;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Broker;
 using Common;
 using CurrentmeterSaver;
 using Microsoft.ServiceFabric.Data.Collections;
@@ -26,9 +27,10 @@ namespace HistoryDataService
     /// </summary>
     internal sealed class HistoryDataService : StatefulService
     {
+        HistoryData historyData;
         public HistoryDataService(StatefulServiceContext context)
             : base(context)
-        { }
+        { historyData = new HistoryData(this.StateManager); }
 
         /// <summary>
         /// Optional override to create listeners (e.g., HTTP, Service Remoting, WCF, etc.) for this service replica to handle client or user requests.
@@ -56,7 +58,7 @@ namespace HistoryDataService
             string nodeIP = FabricRuntime.GetNodeContext().IPAddressOrFQDN;
 
             string uriPublished = uriPrefix.Replace("+", nodeIP);
-            return new WcfCommunicationListener<IHistoryData>(context, new HistoryData(), WcfUtility.CreateTcpListenerBinding(), uriPrefix);
+            return new WcfCommunicationListener<IHistoryData>(context, historyData, WcfUtility.CreateTcpListenerBinding(), uriPrefix);
         }
 
         /// <summary>
@@ -70,6 +72,7 @@ namespace HistoryDataService
             //       or remove this RunAsync override if it's not needed in your service.
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
+            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
             DateTime dt = DateTime.Now;
             while (true)
             {
@@ -110,28 +113,55 @@ namespace HistoryDataService
                 new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
                 new ServicePartitionKey(0));
             List<CurrentMeter> currentMeters = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.GetAllActiveData());
-            try
+            if (currentMeters.Count > 0)
             {
-                CloudStorageAccount _storageAccount;
-                CloudTable _table;
-                string a = ConfigurationManager.AppSettings["DataConnectionString"];
-                _storageAccount = CloudStorageAccount.Parse(a);
-                CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-                _table = tableClient.GetTableReference("HistoryDataStorage");
-                foreach (CurrentMeter currentMeter in currentMeters)
+                try
                 {
-                    CurrentMeterEntity currentMeterEntity = new CurrentMeterEntity(currentMeter.ID, currentMeter.CurrentMeterID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState);
-                    TableOperation insertOperation = TableOperation.InsertOrReplace(currentMeterEntity);
-                    _table.Execute(insertOperation);
-                }
+                    CloudStorageAccount _storageAccount;
+                    CloudTable _table;
+                    string a = ConfigurationManager.AppSettings["DataConnectionString"];
+                    _storageAccount = CloudStorageAccount.Parse(a);
+                    CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
+                    _table = tableClient.GetTableReference("HistoryDataStorage");
+                    foreach (CurrentMeter currentMeter in currentMeters)
+                    {
+                        CurrentMeterEntity currentMeterEntity = new CurrentMeterEntity(currentMeter.ID, currentMeter.CurrentMeterID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState);
+                        TableOperation insertOperation = TableOperation.InsertOrReplace(currentMeterEntity);
+                        _table.Execute(insertOperation);
+                    }
 
-                bool tempBool = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.DeleteAllActiveData());
-            }
-            catch
-            {
-                ServiceEventSource.Current.Message("Nije napravljen cloud");
+                    bool tempBool = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.DeleteAllActiveData());
+                    if (tempBool)
+                    {
+                        FabricClient fabricClient1 = new FabricClient();
+                        int partitionsNumber1 = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+                        var binding1 = WcfUtility.CreateTcpClientBinding();
+                        int index1 = 0;
+                        //for (int i = 0; i < partitionsNumber; i++)
+                        //{
+                        ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                            new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                            new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                            new ServicePartitionKey(0));
+                        bool tempPublish = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Publish("history"));
+                    }
+
+                }
+                catch
+                {
+                    ServiceEventSource.Current.Message("Nije napravljen cloud");
+                }
             }
             return true;
+        }
+        public async void AddToDictionary()
+        {
+            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
+            using (var tx = this.StateManager.CreateTransaction())
+            {
+                await Subscribe.TryAddAsync(tx, "subscribed", false);
+                await tx.CommitAsync();
+            }
         }
 
     }

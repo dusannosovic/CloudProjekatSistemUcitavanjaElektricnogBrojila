@@ -134,6 +134,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Broker\Broker.csproj">
+      <Project>{3529fff4-6a84-4e71-976f-1d3932c5de81}</Project>
+      <Name>Broker</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Common\Common.csproj">
       <Project>{941BF6A1-66B4-45C8-98C4-406D9163D18D}</Project>
       <Name>Common</Name>

@@ -13,9 +13,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Common", "Common\Common.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MailService", "MailService\MailService.csproj", "{2C69A7E5-DC55-48CD-B983-CAAF9F89A132}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HistoryDataService", "HistoryDataService\HistoryDataService.csproj", "{74D912A2-C0C9-46B7-B41C-1116CB424103}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Broker", "Broker\Broker.csproj", "{3529FFF4-6A84-4E71-976F-1D3932C5DE81}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HistoryService", "HistoryService\HistoryService.csproj", "{38017C9E-B653-41BB-8463-A064E0C7D5E0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -61,18 +61,18 @@ Global
 		{2C69A7E5-DC55-48CD-B983-CAAF9F89A132}.Release|Any CPU.ActiveCfg = Release|x64
 		{2C69A7E5-DC55-48CD-B983-CAAF9F89A132}.Release|x64.ActiveCfg = Release|x64
 		{2C69A7E5-DC55-48CD-B983-CAAF9F89A132}.Release|x64.Build.0 = Release|x64
-		{74D912A2-C0C9-46B7-B41C-1116CB424103}.Debug|Any CPU.ActiveCfg = Debug|x64
-		{74D912A2-C0C9-46B7-B41C-1116CB424103}.Debug|x64.ActiveCfg = Debug|x64
-		{74D912A2-C0C9-46B7-B41C-1116CB424103}.Debug|x64.Build.0 = Debug|x64
-		{74D912A2-C0C9-46B7-B41C-1116CB424103}.Release|Any CPU.ActiveCfg = Release|x64
-		{74D912A2-C0C9-46B7-B41C-1116CB424103}.Release|x64.ActiveCfg = Release|x64
-		{74D912A2-C0C9-46B7-B41C-1116CB424103}.Release|x64.Build.0 = Release|x64
 		{3529FFF4-6A84-4E71-976F-1D3932C5DE81}.Debug|Any CPU.ActiveCfg = Debug|x64
 		{3529FFF4-6A84-4E71-976F-1D3932C5DE81}.Debug|x64.ActiveCfg = Debug|x64
 		{3529FFF4-6A84-4E71-976F-1D3932C5DE81}.Debug|x64.Build.0 = Debug|x64
 		{3529FFF4-6A84-4E71-976F-1D3932C5DE81}.Release|Any CPU.ActiveCfg = Release|x64
 		{3529FFF4-6A84-4E71-976F-1D3932C5DE81}.Release|x64.ActiveCfg = Release|x64
 		{3529FFF4-6A84-4E71-976F-1D3932C5DE81}.Release|x64.Build.0 = Release|x64
+		{38017C9E-B653-41BB-8463-A064E0C7D5E0}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{38017C9E-B653-41BB-8463-A064E0C7D5E0}.Debug|x64.ActiveCfg = Debug|x64
+		{38017C9E-B653-41BB-8463-A064E0C7D5E0}.Debug|x64.Build.0 = Debug|x64
+		{38017C9E-B653-41BB-8463-A064E0C7D5E0}.Release|Any CPU.ActiveCfg = Release|x64
+		{38017C9E-B653-41BB-8463-A064E0C7D5E0}.Release|x64.ActiveCfg = Release|x64
+		{38017C9E-B653-41BB-8463-A064E0C7D5E0}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -23,7 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj" />
     <ProjectReference Include="..\CurrentmeterSaver\CurrentmeterSaver.csproj" />
-    <ProjectReference Include="..\HistoryDataService\HistoryDataService.csproj" />
+    <ProjectReference Include="..\HistoryService\HistoryService.csproj" />
   </ItemGroup>
 
 </Project>

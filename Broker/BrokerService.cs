@@ -30,11 +30,10 @@ namespace Broker
         }
         public async Task<bool> Publish(string topic)
         {
-            Subscribed = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
-            try
+        Subscribed = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
+
+            using (var tx = this.StateManager.CreateTransaction())
             {
-                using (var tx = this.StateManager.CreateTransaction())
-                {
                     if ((await Subscribed.TryGetValueAsync(tx, topic)).Value)
                     {
                         var myBinding = new NetTcpBinding(SecurityMode.None);
@@ -43,14 +42,22 @@ namespace Broker
                         using (var myChannelFactory = new ChannelFactory<IClientService>(myBinding, myEndpoint))
                         {
                             IClientService clientService = null;
-                            clientService = myChannelFactory.CreateChannel();
-                            clientService.Publish();
-                            myChannelFactory.Close();
+                            try
+                            {
+                                clientService = myChannelFactory.CreateChannel();
+                                clientService.Publish();
+                                ((ICommunicationObject)clientService).Close();
+                                myChannelFactory.Close();
+                            }
+                            catch
+                            {
+                                (clientService as ICommunicationObject)?.Abort();
+                                return false;
+                            }
+                            
                         }
                     }
                 }
-            }
-            catch { return false; }
 
             return true;
         }

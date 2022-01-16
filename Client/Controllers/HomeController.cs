@@ -12,8 +12,9 @@ using Microsoft.ServiceFabric.Services.Communication.Wcf.Client;
 using Microsoft.ServiceFabric.Services.Client;
 using CurrentmeterSaver;
 using Common;
-using HistoryDataService;
 using Broker;
+using System.ServiceModel;
+using HistoryService;
 
 namespace Client.Controllers
 {
@@ -42,13 +43,13 @@ namespace Client.Controllers
 
             //----------------------------------------------------------------------------------------------------------------------------------------------------------------------//
             FabricClient fabricClient1 = new FabricClient();
-            int partitionsNumber1 = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+            int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
             var binding1 = WcfUtility.CreateTcpClientBinding();
             int index1 = 0;
             //for (int i = 0; i < partitionsNumber; i++)
             //{
             ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
-                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
                 new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
                 new ServicePartitionKey(random.Next(partitionsNumber1)));
             //---------------------------------------------------------------------------------------------------------------------------------------------------------------------//
@@ -74,13 +75,13 @@ namespace Client.Controllers
                 new ServicePartitionKey(random.Next(partitionsNumber)));
             //----------------------------------------------------------------------------------------------------------------------------------------------------------------------//
             FabricClient fabricClient1 = new FabricClient();
-            int partitionsNumber1 = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+            int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
             var binding1 = WcfUtility.CreateTcpClientBinding();
             int index1 = 0;
             //for (int i = 0; i < partitionsNumber; i++)
             //{
             ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
-                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
                 new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
                 new ServicePartitionKey(random.Next(partitionsNumber1)));
             //---------------------------------------------------------------------------------------------------------------------------------------------------------------------//
@@ -96,30 +97,40 @@ namespace Client.Controllers
         {
             Random random = new Random();
             List<CurrentMeter> currentMeters = new List<CurrentMeter>();
-            FabricClient fabricClient = new FabricClient();
-            int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/HistoryDataService"))).Count;
-            var binding = WcfUtility.CreateTcpClientBinding();
-            int index = 0;
-            //for (int i = 0; i < partitionsNumber; i++)
-            //{
-            ServicePartitionClient<WcfCommunicationClient<IHistoryData>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<IHistoryData>>(
-                new WcfCommunicationClientFactory<IHistoryData>(clientBinding: binding),
-                new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/HistoryDataService"),
-                new ServicePartitionKey(random.Next(partitionsNumber)));
+            var myBinding = new NetTcpBinding(SecurityMode.None);
+            var myEndpoint = new EndpointAddress("net.tcp://localhost:54675/HistoryServiceEndpoint");
+            using(var myChannelFactory = new ChannelFactory<IHistoryS>(myBinding, myEndpoint))
+            {
+
+                IHistoryS client = null;
+                try
+                {
+                    client = myChannelFactory.CreateChannel();
+                    currentMeters = client.GetAllHistoricalData();
+                    ((ICommunicationObject)client).Close();
+                    myChannelFactory.Close();
+                }
+                catch
+                {
+                    (client as ICommunicationObject)?.Abort();
+                }
+            }
+
+
             FabricClient fabricClient1 = new FabricClient();
-            int partitionsNumber1 = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+            int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
             var binding1 = WcfUtility.CreateTcpClientBinding();
             int index1 = 0;
             //for (int i = 0; i < partitionsNumber; i++)
             //{
             ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
-                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
                 new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
                 new ServicePartitionKey(random.Next(partitionsNumber1)));
 
             bool a = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Subscribe("history"));
             bool c = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Unsubscribe("active"));
-            currentMeters =  servicePartitionClient.InvokeWithRetry(client => client.Channel.GetAllHistoricalData());
+            //currentMeters =  servicePartitionClient.InvokeWithRetry(client => client.Channel.GetAllHistoricalData());
             return View(currentMeters);
         }
 

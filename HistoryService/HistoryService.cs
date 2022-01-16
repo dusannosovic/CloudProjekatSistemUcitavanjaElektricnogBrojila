@@ -2,14 +2,12 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Fabric;
-using System.Fabric.Description;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Broker;
 using Common;
 using CurrentmeterSaver;
-using Microsoft.ServiceFabric.Data.Collections;
 using Microsoft.ServiceFabric.Services.Client;
 using Microsoft.ServiceFabric.Services.Communication.Client;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
@@ -20,86 +18,70 @@ using Microsoft.ServiceFabric.Services.Runtime;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 
-namespace HistoryDataService
+namespace HistoryService
 {
     /// <summary>
-    /// An instance of this class is created for each service replica by the Service Fabric runtime.
+    /// An instance of this class is created for each service instance by the Service Fabric runtime.
     /// </summary>
-    internal sealed class HistoryDataService : StatefulService
+    internal sealed class HistoryService : StatelessService
     {
-        HistoryData historyData;
-        public HistoryDataService(StatefulServiceContext context)
+        public HistoryService(StatelessServiceContext context)
             : base(context)
-        { historyData = new HistoryData(this.StateManager); }
+        { }
 
         /// <summary>
-        /// Optional override to create listeners (e.g., HTTP, Service Remoting, WCF, etc.) for this service replica to handle client or user requests.
+        /// Optional override to create listeners (e.g., TCP, HTTP) for this service replica to handle client or user requests.
         /// </summary>
-        /// <remarks>
-        /// For more information on service communication, see https://aka.ms/servicefabricservicecommunication
-        /// </remarks>
         /// <returns>A collection of listeners.</returns>
-        protected override IEnumerable<ServiceReplicaListener> CreateServiceReplicaListeners()
+        protected override IEnumerable<ServiceInstanceListener> CreateServiceInstanceListeners()
         {
-            return new[] { new ServiceReplicaListener(context => this.CreateInternalListener(context)) };
+            return new[] { new ServiceInstanceListener(context => this.CreateInternalListener(context)) };
         }
-        private ICommunicationListener CreateInternalListener(ServiceContext context)
+        private ICommunicationListener CreateInternalListener(StatelessServiceContext context)
         {
+            string host = context.NodeContext.IPAddressOrFQDN;
 
-            EndpointResourceDescription internalEndpoint = context.CodePackageActivationContext.GetEndpoint("ProcessingServiceEndpoint");
-            string uriPrefix = String.Format(
-                   "{0}://+:{1}/{2}/{3}-{4}/",
-                   internalEndpoint.Protocol,
-                   internalEndpoint.Port,
-                   context.PartitionId,
-                   context.ReplicaOrInstanceId,
-                   Guid.NewGuid());
+            var endpointConfig = context.CodePackageActivationContext.GetEndpoint("HistoryServiceEndpoint");
+            int port = endpointConfig.Port;
+            var scheme = endpointConfig.Protocol.ToString();
+            string uri = string.Format(CultureInfo.InvariantCulture, "net.{0}://{1}:{2}/HistoryServiceEndpoint", scheme, host, port);
 
-            string nodeIP = FabricRuntime.GetNodeContext().IPAddressOrFQDN;
+            var listener = new WcfCommunicationListener<IHistoryS>(
+                serviceContext: context,
+                wcfServiceObject: new HistoryS(),
+                listenerBinding: WcfUtility.CreateTcpListenerBinding(maxMessageSize: 1024 * 1024 * 1024),
+                address: new System.ServiceModel.EndpointAddress(uri)
+                );
 
-            string uriPublished = uriPrefix.Replace("+", nodeIP);
-            return new WcfCommunicationListener<IHistoryData>(context, historyData, WcfUtility.CreateTcpListenerBinding(), uriPrefix);
+            ServiceEventSource.Current.Message("Napravljen listener!! ");
+            return listener;
         }
 
         /// <summary>
-        /// This is the main entry point for your service replica.
-        /// This method executes when this replica of your service becomes primary and has write status.
+        /// This is the main entry point for your service instance.
         /// </summary>
-        /// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service replica.</param>
+        /// <param name="cancellationToken">Canceled when Service Fabric needs to shut down this service instance.</param>
         protected override async Task RunAsync(CancellationToken cancellationToken)
         {
             // TODO: Replace the following sample code with your own logic 
             //       or remove this RunAsync override if it's not needed in your service.
-
-            var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
-            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
             DateTime dt = DateTime.Now;
+            long iterations = 0;
+            await Task.Delay(TimeSpan.FromSeconds(40), cancellationToken);
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                using (var tx = this.StateManager.CreateTransaction())
-                {
-                    var result = await myDictionary.TryGetValueAsync(tx, "Counter");
-
-                    ServiceEventSource.Current.ServiceMessage(this.Context, "Current Counter Value: {0}",
-                        result.HasValue ? result.Value.ToString() : "Value does not exist.");
-
-                    await myDictionary.AddOrUpdateAsync(tx, "Counter", 0, (key, value) => ++value);
-
-                    // If an exception is thrown before calling CommitAsync, the transaction aborts, all changes are 
-                    // discarded, and nothing is saved to the secondary replicas.
-                    await tx.CommitAsync();
-                }
+                ServiceEventSource.Current.ServiceMessage(this.Context, "Working-{0}", ++iterations);
                 if (dt.Day == 1)
                 {
-                   //bool tempbool = await GetDataFromCurrentMeter();
+                    bool tempbool = await GetDataFromCurrentMeter();
                 }
                 dt = dt.AddDays(1);
-                await Task.Delay(TimeSpan.FromSeconds(50), cancellationToken);
+
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
             }
         }
-
         async Task<bool> GetDataFromCurrentMeter()
         {
             Random random = new Random();
@@ -135,13 +117,13 @@ namespace HistoryDataService
                     if (tempBool)
                     {
                         FabricClient fabricClient1 = new FabricClient();
-                        int partitionsNumber1 = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+                        int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
                         var binding1 = WcfUtility.CreateTcpClientBinding();
                         int index1 = 0;
                         //for (int i = 0; i < partitionsNumber; i++)
                         //{
                         ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
-                            new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                            new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
                             new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
                             new ServicePartitionKey(random.Next(partitionsNumber1)));
                         bool tempPublish = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.Publish("history"));
@@ -155,15 +137,5 @@ namespace HistoryDataService
             }
             return true;
         }
-        public async void AddToDictionary()
-        {
-            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
-            using (var tx = this.StateManager.CreateTransaction())
-            {
-                await Subscribe.TryAddAsync(tx, "subscribed", false);
-                await tx.CommitAsync();
-            }
-        }
-
     }
 }

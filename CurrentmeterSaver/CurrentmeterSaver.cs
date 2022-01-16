@@ -90,7 +90,7 @@ namespace CurrentmeterSaver
                 }
                 //await MailService();
                 AddToTableStorage();
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
             }
 
         }

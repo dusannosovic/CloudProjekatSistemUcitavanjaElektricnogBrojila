@@ -69,7 +69,6 @@ namespace CurrentmeterSaver
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
             var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
-            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
             await ReadFromTable();
             while (true)
             {
@@ -104,8 +103,8 @@ namespace CurrentmeterSaver
                 string a = ConfigurationManager.AppSettings["DataConnectionString"];
                 _storageAccount = CloudStorageAccount.Parse(a);
                 CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-                _table = tableClient.GetTableReference("CountTableStorage");
-                var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "ActiveCurrentMeterData" select g;
+                _table = tableClient.GetTableReference("CurrentMeterDataStorage");
+                var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "CurrentMeterData" && !g.HistoryData select g;
                 if (results.ToList().Count > 0)
                 {
                     var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
@@ -135,7 +134,7 @@ namespace CurrentmeterSaver
                 while(await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
                 {
                     CurrentMeter currentMeter = (await CurrentMeterActiveData.TryGetValueAsync(tx, enumerator.Current.Key)).Value;
-                    currentMeterEntities.Add(new CurrentMeterEntity(currentMeter.ID, currentMeter.CurrentMeterID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState));
+                    currentMeterEntities.Add(new CurrentMeterEntity(currentMeter.ID, currentMeter.CurrentMeterID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState,false));
                 }
             }
 
@@ -146,7 +145,7 @@ namespace CurrentmeterSaver
                 string a = ConfigurationManager.AppSettings["DataConnectionString"];
                 _storageAccount = CloudStorageAccount.Parse(a);
                 CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-                _table = tableClient.GetTableReference("CountTableStorage");
+                _table = tableClient.GetTableReference("CurrentMeterDataStorage");
                 foreach (CurrentMeterEntity currentMeterEntity in currentMeterEntities)
                 {
                     TableOperation insertOperation = TableOperation.InsertOrReplace(currentMeterEntity);
@@ -156,15 +155,6 @@ namespace CurrentmeterSaver
             catch
             {
                 ServiceEventSource.Current.Message("Nije napravljen cloud");
-            }
-        }
-        public async void AddToDictionary()
-        {
-            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
-            using(var tx = this.StateManager.CreateTransaction())
-            {
-                await Subscribe.TryAddAsync(tx, "subscribed", false);
-                await tx.CommitAsync();
             }
         }
 

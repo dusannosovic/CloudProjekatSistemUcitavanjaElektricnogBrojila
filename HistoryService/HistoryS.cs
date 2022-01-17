@@ -20,8 +20,8 @@ namespace HistoryService
             string a = ConfigurationManager.AppSettings["DataConnectionString"];
             _storageAccount = CloudStorageAccount.Parse(a);
             CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-            _table = tableClient.GetTableReference("HistoryDataStorage");
-            var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "ActiveCurrentMeterData" select g;
+            _table = tableClient.GetTableReference("CurrentMeterDataStorage");
+            var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "CurrentMeterData" && g.HistoryData select g;
             foreach (CurrentMeterEntity currentMeterEntity in results.ToList())
             {
                 currentMeters.Add(new CurrentMeter(currentMeterEntity.RowKey, currentMeterEntity.CurrentMeterID, currentMeterEntity.Location, currentMeterEntity.OldState, currentMeterEntity.NewState));

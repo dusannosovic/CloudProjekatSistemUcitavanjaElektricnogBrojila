@@ -99,11 +99,11 @@ namespace MailService
                         try
                         {
                             CurrentMeter currentMeter = new CurrentMeter();
-                            currentMeter.ID = mail[0];
-                            currentMeter.CurrentMeterID = mail[1];
-                            currentMeter.Location = mail[2];
-                            currentMeter.OldState = Convert.ToDouble(mail[3]);
-                            currentMeter.NewState = Convert.ToDouble(mail[4]);
+                            currentMeter.ID = i.ToString();
+                            currentMeter.CurrentMeterID = mail[0];
+                            currentMeter.Location = mail[1];
+                            currentMeter.OldState = Convert.ToDouble(mail[2]);
+                            currentMeter.NewState = Convert.ToDouble(mail[3]);
                             await CurrentMeterActiveData.TryAddAsync(tx, currentMeter.ID, currentMeter);
                         }
                         catch
@@ -142,13 +142,14 @@ namespace MailService
                     while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
                     {
                         CurrentMeter currentMeter = (await CurrentMeterActiveData.TryGetValueAsync(tx, enumerator.Current.Key)).Value;
+                        int id = -1;
                         for (int i = 0; i < partitionsNumber; i++)
                         {
                             ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>>(
                                 new WcfCommunicationClientFactory<ICurrentMeterSaverService>(clientBinding: binding),
                                 new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
                                 new ServicePartitionKey(index%partitionsNumber));
-                            a = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.AddCurrentMeter(currentMeter.ID, currentMeter.ID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState));
+                            id = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.AddCurrentMeter(id,currentMeter.CurrentMeterID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState));
                             index++;
                         }   
                         

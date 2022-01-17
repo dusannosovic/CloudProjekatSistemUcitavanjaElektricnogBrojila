@@ -12,7 +12,7 @@ namespace CurrentmeterSaver
     public interface ICurrentMeterSaverService
     {
         [OperationContract]
-        Task<bool> AddCurrentMeter(string id, string currentMeterId, string location, double oldState, double newState);
+        Task<int> AddCurrentMeter(int idi,string currentMeterId, string location, double oldState, double newState);
         [OperationContract]
         Task<List<CurrentMeter>> GetAllActiveData();
         [OperationContract]

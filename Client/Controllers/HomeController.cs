@@ -40,8 +40,17 @@ namespace Client.Controllers
         }
         [HttpPost]
         [Route("/HomeController/PostData")]
-        public async Task<IActionResult> PostData(string id, string idCurrentMeter, string location, double oldState, double newState)
+        public async Task<IActionResult> PostData(string idCurrentMeter, string location, double oldState, double newState)
         {
+            if (string.IsNullOrEmpty(idCurrentMeter))
+            {
+                return View("Index");
+            }
+            if (string.IsNullOrEmpty(location))
+            {
+                return View("Index");
+            }
+            int id = -1;
             FabricClient fabricClient = new FabricClient();
             int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"))).Count;
             var binding = WcfUtility.CreateTcpClientBinding();
@@ -52,13 +61,9 @@ namespace Client.Controllers
                     new WcfCommunicationClientFactory<ICurrentMeterSaverService>(clientBinding: binding),
                     new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
                     new ServicePartitionKey(index%partitionsNumber));
-                bool a = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.AddCurrentMeter(id, idCurrentMeter, location, oldState, newState));
+                id = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.AddCurrentMeter(id,idCurrentMeter, location, oldState, newState));
                 index++;
             }
-
-
-
-           
             return View("Index");
         }
         public async Task<IActionResult> About()

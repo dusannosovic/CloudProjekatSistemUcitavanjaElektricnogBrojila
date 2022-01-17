@@ -32,14 +32,34 @@ namespace CurrentmeterSaver
         {
             StateManager = stateManager;
         }
-        public async Task<bool> AddCurrentMeter(string id, string currentMeterId, string location, double oldState, double newState)
+        public async Task<int> AddCurrentMeter(int idi,string currentMeterId, string location, double oldState, double newState)
         {
-            CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
-            using(var tx = this.StateManager.CreateTransaction())
+            CloudStorageAccount _storageAccount;
+            CloudTable _table;
+            string a = ConfigurationManager.AppSettings["DataConnectionString"];
+            _storageAccount = CloudStorageAccount.Parse(a);
+            CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
+            _table = tableClient.GetTableReference("CurrentMeterDataStorage");
+            var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "CurrentMeterData" select g;
+            string id;
+            int idReturn;
+            if (idi < 0)
             {
-                Random random = new Random();
+                idReturn = results.ToList().Count;
+                id = results.ToList().Count.ToString();
+            }
+            else
+            {
+                idReturn = idi;
+                id = idi.ToString();
+            }
+            CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+            using (var tx = this.StateManager.CreateTransaction())
+            {
                 await CurrentMeterDict.TryAddAsync(tx, id, new CurrentMeter(id, currentMeterId, location, oldState, newState));
                 await tx.CommitAsync();
+            }
+
                 FabricClient fabricClient = new FabricClient();
                 int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
                 var binding = WcfUtility.CreateTcpClientBinding();
@@ -53,8 +73,8 @@ namespace CurrentmeterSaver
                     bool tempPublish = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.Publish("active"));
                     index++;
                 }
-            }
-            return true;
+            
+            return idReturn;
         }
 
         public async Task<List<CurrentMeter>> GetAllActiveData()
@@ -74,34 +94,6 @@ namespace CurrentmeterSaver
         public async Task<bool> DeleteAllActiveData()
         {
             CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
-            try
-            {
-                CloudStorageAccount _storageAccount;
-                CloudTable _table;
-                string a = ConfigurationManager.AppSettings["DataConnectionString"];
-                _storageAccount = CloudStorageAccount.Parse(a);
-                CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-                _table = tableClient.GetTableReference("CountTableStorage");
-                var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "ActiveCurrentMeterData" select g;
-                foreach(CurrentMeterEntity currentMeterEntity in results.ToList())
-                {
-                var currentEntity = new CurrentMeterEntity()
-                {
-                    PartitionKey = currentMeterEntity.PartitionKey,
-                    RowKey = currentMeterEntity.RowKey,
-                    ETag = "*"
-
-                };
-
-                
-                    TableOperation deleteOperation = TableOperation.Delete(currentEntity);
-                    _table.Execute(deleteOperation);
-                }
-            }
-            catch 
-            {
-                ServiceEventSource.Current.Message("Nije napravljen cloud");
-            }
             using (var tx = this.StateManager.CreateTransaction())
             {
                 var enumerator = (await CurrentMeterDict.CreateEnumerableAsync(tx)).GetAsyncEnumerator();

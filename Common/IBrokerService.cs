@@ -16,5 +16,13 @@ namespace Common
         Task<bool> Unsubscribe(string type);
         [OperationContract]
         Task<bool> Publish(string topic);
+        [OperationContract]
+        Task<bool> PublishActive(List<CurrentMeter> currentMeters);
+        [OperationContract]
+        Task<bool> PublishHistory(List<CurrentMeter> currentMeters);
+        [OperationContract]
+        Task<List<CurrentMeter>> GetHistoryData();
+        [OperationContract]
+        Task<List<CurrentMeter>> GetActiveData();
     }
 }

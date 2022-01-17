@@ -51,7 +51,7 @@ namespace Client
                                     .UseUrls(url)
                                     .Build();
                     }),"ServiceEndpoint"),
-                new ServiceInstanceListener(context => this.CreateWcfCommunicationListener(context),"WebCommunication")
+                //new ServiceInstanceListener(context => this.CreateWcfCommunicationListener(context),"WebCommunication")
             };
         }
         private ICommunicationListener CreateWcfCommunicationListener(StatelessServiceContext context)

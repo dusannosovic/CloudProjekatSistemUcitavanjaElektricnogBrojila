@@ -18,6 +18,8 @@ namespace Broker
     public class BrokerService : IBrokerService
     {
         IReliableDictionary<string, bool> Subscribed;
+        IReliableDictionary<string, CurrentMeter> ActiveData;
+        IReliableDictionary<string, CurrentMeter> HistoryData;
         IReliableStateManager StateManager;
 
         public BrokerService(IReliableStateManager stateManager)
@@ -61,7 +63,52 @@ namespace Broker
 
             return true;
         }
-
+        public async Task<bool> PublishActive(List<CurrentMeter> currentMeters)
+        {
+            try
+            {
+                ActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("ActiveData");
+                using (var tx = this.StateManager.CreateTransaction())
+                {
+                    var enumerator = (await ActiveData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
+                    while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                    {
+                        await ActiveData.TryRemoveAsync(tx, enumerator.Current.Key);
+                    }
+                    foreach (CurrentMeter currentMeter in currentMeters)
+                    {
+                        await ActiveData.TryAddAsync(tx, currentMeter.ID, currentMeter);
+                    }
+                    await tx.CommitAsync();
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            
+        }
+        public async Task<bool> PublishHistory(List<CurrentMeter> currentMeters)
+        {
+            try
+            {
+                HistoryData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("HistoryData");
+                using (var tx = this.StateManager.CreateTransaction())
+                {
+                    foreach (CurrentMeter currentMeter in currentMeters)
+                    {
+                        await HistoryData.TryAddAsync(tx, currentMeter.ID, currentMeter);
+                    }
+                    await tx.CommitAsync();
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
         public async Task<bool> Subscribe(string type)
         {
             Subscribed = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
@@ -98,6 +145,36 @@ namespace Broker
             {
                 return false;
             }
+        }
+
+        public async Task<List<CurrentMeter>> GetHistoryData()
+        {
+            List<CurrentMeter> currentMeters = new List<CurrentMeter>();
+            HistoryData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("HistoryData");
+            using (var tx = this.StateManager.CreateTransaction())
+            {
+                var enumerator = (await HistoryData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
+                while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                {
+                    currentMeters.Add(enumerator.Current.Value);
+                }
+            }
+            return currentMeters;
+        }
+
+        public async Task<List<CurrentMeter>> GetActiveData()
+        {
+            List<CurrentMeter> currentMeters = new List<CurrentMeter>();
+            ActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("ActiveData");
+            using (var tx = this.StateManager.CreateTransaction())
+            {
+                var enumerator = (await ActiveData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
+                while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                {
+                    currentMeters.Add(enumerator.Current.Value);
+                }
+            }
+            return currentMeters;
         }
     }
 }

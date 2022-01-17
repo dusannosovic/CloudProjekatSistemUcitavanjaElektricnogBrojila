@@ -65,6 +65,8 @@ namespace Broker
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
             var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
+            var ActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("ActiveData");
+            var HisrotyData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("HistoryData");
             AddToDictionary();
             while (true)
             {

@@ -8,8 +8,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Common;
 using Microsoft.ServiceFabric.Data.Collections;
+using Microsoft.ServiceFabric.Services.Client;
+using Microsoft.ServiceFabric.Services.Communication.Client;
 using Microsoft.ServiceFabric.Services.Communication.Runtime;
 using Microsoft.ServiceFabric.Services.Communication.Wcf;
+using Microsoft.ServiceFabric.Services.Communication.Wcf.Client;
 using Microsoft.ServiceFabric.Services.Communication.Wcf.Runtime;
 using Microsoft.ServiceFabric.Services.Runtime;
 using Microsoft.WindowsAzure.Storage;
@@ -70,6 +73,8 @@ namespace CurrentmeterSaver
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
             var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
             await ReadFromTable();
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            await SendDataToBroker(cancellationToken);
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -156,6 +161,38 @@ namespace CurrentmeterSaver
             {
                 ServiceEventSource.Current.Message("Nije napravljen cloud");
             }
+        }
+        public async Task SendDataToBroker(CancellationToken cancellationToken)
+        {
+            bool tempPublish = false;
+            List<CurrentMeter> currentMeters = new List<CurrentMeter>();
+            var CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+            using (var tx = this.StateManager.CreateTransaction())
+            {
+                var enumerator = (await CurrentMeterDict.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
+                while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                {
+                    currentMeters.Add(enumerator.Current.Value);
+                }
+            }
+            FabricClient fabricClient1 = new FabricClient();
+            int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+            var binding1 = WcfUtility.CreateTcpClientBinding();
+            int index1 = 0;
+            for (int i = 0; i < partitionsNumber1; i++)
+            {
+                ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                    new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
+                    new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                    new ServicePartitionKey(index1 % partitionsNumber1));
+                while (!tempPublish)
+                {
+                    tempPublish = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.PublishActive(currentMeters));
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                }
+                index1++;
+            }
+
         }
 
 

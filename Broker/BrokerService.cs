@@ -45,7 +45,7 @@ namespace Broker
                             try
                             {
                                 clientService = myChannelFactory.CreateChannel();
-                                clientService.Publish();
+                                clientService.Publish(topic);
                                 ((ICommunicationObject)clientService).Close();
                                 myChannelFactory.Close();
                             }

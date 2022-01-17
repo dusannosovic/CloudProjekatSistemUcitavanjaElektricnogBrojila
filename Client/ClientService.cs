@@ -8,7 +8,7 @@ namespace Client
 {
     public class ClientService : IClientService
     {
-        public void Publish()
+        public void Publish(string type)
         {
             ServiceEventSource.Current.Message("Klijent je obavesten");
         }

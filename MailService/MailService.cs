@@ -134,21 +134,24 @@ namespace MailService
                 int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"))).Count;
                 var binding = WcfUtility.CreateTcpClientBinding();
                 int index = 0;
-                //for (int i = 0; i < partitionsNumber; i++)
-                //{
-                ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>>(
-                    new WcfCommunicationClientFactory<ICurrentMeterSaverService>(clientBinding: binding),
-                    new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
-                    new ServicePartitionKey(random.Next(partitionsNumber)));
                 //var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
                 using (var tx = this.StateManager.CreateTransaction())
                 {
-                    bool a;
+                    bool a = false;
                     var enumerator = (await CurrentMeterActiveData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
                     while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
                     {
                         CurrentMeter currentMeter = (await CurrentMeterActiveData.TryGetValueAsync(tx, enumerator.Current.Key)).Value;
-                        a = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.AddCurrentMeter(currentMeter.ID, currentMeter.ID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState));
+                        for (int i = 0; i < partitionsNumber; i++)
+                        {
+                            ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<ICurrentMeterSaverService>>(
+                                new WcfCommunicationClientFactory<ICurrentMeterSaverService>(clientBinding: binding),
+                                new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"),
+                                new ServicePartitionKey(index%partitionsNumber));
+                            a = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.AddCurrentMeter(currentMeter.ID, currentMeter.ID, currentMeter.Location, currentMeter.OldState, currentMeter.NewState));
+                            index++;
+                        }   
+                        
                         if (a)
                         {
                             await CurrentMeterActiveData.TryRemoveAsync(tx, enumerator.Current.Key);

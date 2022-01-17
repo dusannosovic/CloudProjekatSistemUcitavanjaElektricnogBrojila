@@ -44,13 +44,15 @@ namespace CurrentmeterSaver
                 int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
                 var binding = WcfUtility.CreateTcpClientBinding();
                 int index = 0;
-                //for (int i = 0; i < partitionsNumber; i++)
-                //{
-                ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
-                    new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
-                    new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
-                    new ServicePartitionKey(random.Next(partitionsNumber)));
-                bool tempPublish = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.Publish("active"));
+                for (int i = 0; i < partitionsNumber; i++)
+                {
+                    ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                        new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
+                        new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                        new ServicePartitionKey(index%partitionsNumber));
+                    bool tempPublish = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.Publish("active"));
+                    index++;
+                }
             }
             return true;
         }

@@ -11,6 +11,6 @@ namespace Common
     public interface IClientService
     {
         [OperationContract]
-        void Publish();
+        void Publish(string type);
     }
 }

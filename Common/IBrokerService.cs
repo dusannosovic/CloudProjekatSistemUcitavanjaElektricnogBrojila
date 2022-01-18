@@ -10,12 +10,7 @@ namespace Common
     [ServiceContract]
     public interface IBrokerService
     {
-        [OperationContract]
-        Task<bool> Subscribe(string type);
-        [OperationContract]
-        Task<bool> Unsubscribe(string type);
-        [OperationContract]
-        Task<bool> Publish(string topic);
+
         [OperationContract]
         Task<bool> PublishActive(List<CurrentMeter> currentMeters);
         [OperationContract]
@@ -24,5 +19,12 @@ namespace Common
         Task<List<CurrentMeter>> GetHistoryData();
         [OperationContract]
         Task<List<CurrentMeter>> GetActiveData();
+        /*
+        [OperationContract]
+        Task<bool> Subscribe(string type);
+        [OperationContract]
+        Task<bool> Unsubscribe(string type);
+        [OperationContract]
+        Task<bool> Publish(string topic);*/
     }
 }

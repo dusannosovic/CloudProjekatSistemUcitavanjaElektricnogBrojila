@@ -64,10 +64,10 @@ namespace Broker
             //       or remove this RunAsync override if it's not needed in your service.
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
-            var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
+            //var Subscribe = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
             var ActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("ActiveData");
             var HisrotyData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("HistoryData");
-            AddToDictionary();
+            //AddToDictionary();
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();

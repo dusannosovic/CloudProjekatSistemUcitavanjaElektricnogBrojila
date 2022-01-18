@@ -108,7 +108,7 @@ namespace MailService
                         }
                         catch
                         {
-                            ServiceEventSource.Current.Message("Email servis trenutno ne radi");
+                            ServiceEventSource.Current.Message("Pogresan format mail-a");
                         }
                     }
                     await tx.CommitAsync();
@@ -137,7 +137,6 @@ namespace MailService
                 //var CurrentMeterActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
                 using (var tx = this.StateManager.CreateTransaction())
                 {
-                    bool a = false;
                     var enumerator = (await CurrentMeterActiveData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
                     while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
                     {
@@ -153,7 +152,7 @@ namespace MailService
                             index++;
                         }   
                         
-                        if (a)
+                        if (id>0)
                         {
                             await CurrentMeterActiveData.TryRemoveAsync(tx, enumerator.Current.Key);
                         }

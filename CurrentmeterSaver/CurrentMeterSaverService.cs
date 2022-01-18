@@ -34,32 +34,34 @@ namespace CurrentmeterSaver
         }
         public async Task<int> AddCurrentMeter(int idi,string currentMeterId, string location, double oldState, double newState)
         {
-            CloudStorageAccount _storageAccount;
-            CloudTable _table;
-            string a = ConfigurationManager.AppSettings["DataConnectionString"];
-            _storageAccount = CloudStorageAccount.Parse(a);
-            CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-            _table = tableClient.GetTableReference("CurrentMeterDataStorage");
-            var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "CurrentMeterData" select g;
-            string id;
-            int idReturn;
-            if (idi < 0)
+            try
             {
-                idReturn = results.ToList().Count;
-                id = results.ToList().Count.ToString();
-            }
-            else
-            {
-                idReturn = idi;
-                id = idi.ToString();
-            }
-            CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
-            using (var tx = this.StateManager.CreateTransaction())
-            {
-                await CurrentMeterDict.TryAddAsync(tx, id, new CurrentMeter(id, currentMeterId, location, oldState, newState));
-                await tx.CommitAsync();
-            }
-            List<CurrentMeter> currentMeters = await GetAllActiveData();
+                CloudStorageAccount _storageAccount;
+                CloudTable _table;
+                string a = ConfigurationManager.AppSettings["DataConnectionString"];
+                _storageAccount = CloudStorageAccount.Parse(a);
+                CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
+                _table = tableClient.GetTableReference("CurrentMeterDataStorage");
+                var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "CurrentMeterData" select g;
+                string id;
+                int idReturn = -1;
+                if (idi < 0)
+                {
+                    idReturn = results.ToList().Count;
+                    id = results.ToList().Count.ToString();
+                }
+                else
+                {
+                    idReturn = idi;
+                    id = idi.ToString();
+                }
+                CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+                using (var tx = this.StateManager.CreateTransaction())
+                {
+                    await CurrentMeterDict.TryAddAsync(tx, id, new CurrentMeter(id, currentMeterId, location, oldState, newState));
+                    await tx.CommitAsync();
+                }
+                List<CurrentMeter> currentMeters = await GetAllActiveData();
                 FabricClient fabricClient = new FabricClient();
                 int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
                 var binding = WcfUtility.CreateTcpClientBinding();
@@ -69,12 +71,18 @@ namespace CurrentmeterSaver
                     ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
                         new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding),
                         new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
-                        new ServicePartitionKey(index%partitionsNumber));
+                        new ServicePartitionKey(index % partitionsNumber));
                     bool tempPublish = await servicePartitionClient.InvokeWithRetryAsync(client => client.Channel.PublishActive(currentMeters));
                     index++;
                 }
-            
-            return idReturn;
+
+                return idReturn;
+
+            }
+            catch
+            {
+                return -1;
+            }
         }
 
         public async Task<List<CurrentMeter>> GetAllActiveData()

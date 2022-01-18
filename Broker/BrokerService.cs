@@ -30,39 +30,7 @@ namespace Broker
         {
 
         }
-        public async Task<bool> Publish(string topic)
-        {
-        Subscribed = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
-
-            using (var tx = this.StateManager.CreateTransaction())
-            {
-                    if ((await Subscribed.TryGetValueAsync(tx, topic)).Value)
-                    {
-                        var myBinding = new NetTcpBinding(SecurityMode.None);
-                        var myEndpoint = new EndpointAddress("net.tcp://localhost:52811/WebCommunication");
-                    
-                        using (var myChannelFactory = new ChannelFactory<IClientService>(myBinding, myEndpoint))
-                        {
-                            IClientService clientService = null;
-                            try
-                            {
-                                clientService = myChannelFactory.CreateChannel();
-                                clientService.Publish(topic);
-                                ((ICommunicationObject)clientService).Close();
-                                myChannelFactory.Close();
-                            }
-                            catch
-                            {
-                                (clientService as ICommunicationObject)?.Abort();
-                                return false;
-                            }
-                            
-                        }
-                    }
-                }
-
-            return true;
-        }
+        
         public async Task<bool> PublishActive(List<CurrentMeter> currentMeters)
         {
             try
@@ -109,6 +77,37 @@ namespace Broker
                 return false;
             }
         }
+
+        public async Task<List<CurrentMeter>> GetHistoryData()
+        {
+            List<CurrentMeter> currentMeters = new List<CurrentMeter>();
+            HistoryData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("HistoryData");
+            using (var tx = this.StateManager.CreateTransaction())
+            {
+                var enumerator = (await HistoryData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
+                while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                {
+                    currentMeters.Add(enumerator.Current.Value);
+                }
+            }
+            return currentMeters;
+        }
+        
+        public async Task<List<CurrentMeter>> GetActiveData()
+        {
+            List<CurrentMeter> currentMeters = new List<CurrentMeter>();
+            ActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("ActiveData");
+            using (var tx = this.StateManager.CreateTransaction())
+            {
+                var enumerator = (await ActiveData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
+                while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                {
+                    currentMeters.Add(enumerator.Current.Value);
+                }
+            }
+            return currentMeters;
+        }
+        /*
         public async Task<bool> Subscribe(string type)
         {
             Subscribed = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
@@ -146,35 +145,38 @@ namespace Broker
                 return false;
             }
         }
-
-        public async Task<List<CurrentMeter>> GetHistoryData()
+        public async Task<bool> Publish(string topic)
         {
-            List<CurrentMeter> currentMeters = new List<CurrentMeter>();
-            HistoryData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("HistoryData");
+            Subscribed = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, bool>>("Subscribe");
+
             using (var tx = this.StateManager.CreateTransaction())
             {
-                var enumerator = (await HistoryData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
-                while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                if ((await Subscribed.TryGetValueAsync(tx, topic)).Value)
                 {
-                    currentMeters.Add(enumerator.Current.Value);
-                }
-            }
-            return currentMeters;
-        }
+                    var myBinding = new NetTcpBinding(SecurityMode.None);
+                    var myEndpoint = new EndpointAddress("net.tcp://localhost:52811/WebCommunication");
 
-        public async Task<List<CurrentMeter>> GetActiveData()
-        {
-            List<CurrentMeter> currentMeters = new List<CurrentMeter>();
-            ActiveData = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("ActiveData");
-            using (var tx = this.StateManager.CreateTransaction())
-            {
-                var enumerator = (await ActiveData.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
-                while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
-                {
-                    currentMeters.Add(enumerator.Current.Value);
+                    using (var myChannelFactory = new ChannelFactory<IClientService>(myBinding, myEndpoint))
+                    {
+                        IClientService clientService = null;
+                        try
+                        {
+                            clientService = myChannelFactory.CreateChannel();
+                            clientService.Publish(topic);
+                            ((ICommunicationObject)clientService).Close();
+                            myChannelFactory.Close();
+                        }
+                        catch
+                        {
+                            (clientService as ICommunicationObject)?.Abort();
+                            return false;
+                        }
+
+                    }
                 }
             }
-            return currentMeters;
-        }
+
+            return true;
+        }*/
     }
 }

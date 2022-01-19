@@ -164,35 +164,42 @@ namespace CurrentmeterSaver
         }
         public async Task SendDataToBroker(CancellationToken cancellationToken)
         {
-            bool tempPublish = false;
-            List<CurrentMeter> currentMeters = new List<CurrentMeter>();
-            var CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
-            using (var tx = this.StateManager.CreateTransaction())
+            try
             {
-                var enumerator = (await CurrentMeterDict.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
-                while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                bool tempPublish = false;
+                List<CurrentMeter> currentMeters = new List<CurrentMeter>();
+                var CurrentMeterDict = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, CurrentMeter>>("CurrentMeterActiveData");
+                using (var tx = this.StateManager.CreateTransaction())
                 {
-                    currentMeters.Add(enumerator.Current.Value);
+                    var enumerator = (await CurrentMeterDict.CreateEnumerableAsync(tx)).GetAsyncEnumerator();
+                    while (await enumerator.MoveNextAsync(new System.Threading.CancellationToken()))
+                    {
+                        currentMeters.Add(enumerator.Current.Value);
+                    }
+                }
+                FabricClient fabricClient1 = new FabricClient();
+                int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+                var binding1 = WcfUtility.CreateTcpClientBinding();
+                int index1 = 0;
+                for (int i = 0; i < partitionsNumber1; i++)
+                {
+                    ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                        new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
+                        new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                        new ServicePartitionKey(index1 % partitionsNumber1));
+                    while (!tempPublish)
+                    {
+                        tempPublish = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.PublishActive(currentMeters));
+                        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    }
+                    index1++;
                 }
             }
-            FabricClient fabricClient1 = new FabricClient();
-            int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
-            var binding1 = WcfUtility.CreateTcpClientBinding();
-            int index1 = 0;
-            for (int i = 0; i < partitionsNumber1; i++)
+            catch (Exception e)
             {
-                ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
-                    new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
-                    new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
-                    new ServicePartitionKey(index1 % partitionsNumber1));
-                while (!tempPublish)
-                {
-                    tempPublish = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.PublishActive(currentMeters));
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
-                }
-                index1++;
+                string err = e.Message;
+                ServiceEventSource.Current.Message(err);
             }
-
         }
 
 

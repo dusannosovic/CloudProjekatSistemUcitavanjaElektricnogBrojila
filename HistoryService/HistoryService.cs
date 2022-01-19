@@ -86,7 +86,6 @@ namespace HistoryService
         }
         async Task<bool> GetDataFromCurrentMeter()
         {
-            Random random = new Random();
             FabricClient fabricClient = new FabricClient();
             int partitionsNumber = (await fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/CurrentmeterSaver"))).Count;
             var binding = WcfUtility.CreateTcpClientBinding();
@@ -155,38 +154,54 @@ namespace HistoryService
         public List<CurrentMeter> GetAllHistoricalData()
         {
             List<CurrentMeter> currentMeters = new List<CurrentMeter>();
-            CloudStorageAccount _storageAccount;
-            CloudTable _table;
-            string a = ConfigurationManager.AppSettings["DataConnectionString"];
-            _storageAccount = CloudStorageAccount.Parse(a);
-            CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
-            _table = tableClient.GetTableReference("CurrentMeterDataStorage");
-            var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "CurrentMeterData" && g.HistoryData select g;
-            foreach (CurrentMeterEntity currentMeterEntity in results.ToList())
+            try
             {
-                currentMeters.Add(new CurrentMeter(currentMeterEntity.RowKey, currentMeterEntity.CurrentMeterID, currentMeterEntity.Location, currentMeterEntity.OldState, currentMeterEntity.NewState));
+                CloudStorageAccount _storageAccount;
+                CloudTable _table;
+                string a = ConfigurationManager.AppSettings["DataConnectionString"];
+                _storageAccount = CloudStorageAccount.Parse(a);
+                CloudTableClient tableClient = new CloudTableClient(new Uri(_storageAccount.TableEndpoint.AbsoluteUri), _storageAccount.Credentials);
+                _table = tableClient.GetTableReference("CurrentMeterDataStorage");
+                var results = from g in _table.CreateQuery<CurrentMeterEntity>() where g.PartitionKey == "CurrentMeterData" && g.HistoryData select g;
+                foreach (CurrentMeterEntity currentMeterEntity in results.ToList())
+                {
+                    currentMeters.Add(new CurrentMeter(currentMeterEntity.RowKey, currentMeterEntity.CurrentMeterID, currentMeterEntity.Location, currentMeterEntity.OldState, currentMeterEntity.NewState));
+                }
+            }
+            catch(Exception e)
+            {
+                string err = e.Message;
+                ServiceEventSource.Current.Message(err);
             }
             return currentMeters;
         }
         public async Task SendDataToBroker(CancellationToken cancellationToken)
         {
-            bool tempPublish = false;
-            List<CurrentMeter> currentMeters = GetAllHistoricalData();
-            FabricClient fabricClient1 = new FabricClient();
-            int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
-            var binding1 = WcfUtility.CreateTcpClientBinding();
-            int index1 = 0;
-            for (int i = 0; i < partitionsNumber1; i++)
+            try
             {
-                ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
-                    new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
-                    new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
-                    new ServicePartitionKey(index1 % partitionsNumber1));
-                while (!tempPublish) {
-                    tempPublish = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.PublishHistory(currentMeters));
-                    await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                bool tempPublish = false;
+                List<CurrentMeter> currentMeters = GetAllHistoricalData();
+                FabricClient fabricClient1 = new FabricClient();
+                int partitionsNumber1 = (await fabricClient1.QueryManager.GetPartitionListAsync(new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"))).Count;
+                var binding1 = WcfUtility.CreateTcpClientBinding();
+                int index1 = 0;
+                for (int i = 0; i < partitionsNumber1; i++)
+                {
+                    ServicePartitionClient<WcfCommunicationClient<IBrokerService>> servicePartitionClient1 = new ServicePartitionClient<WcfCommunicationClient<IBrokerService>>(
+                        new WcfCommunicationClientFactory<IBrokerService>(clientBinding: binding1),
+                        new Uri("fabric:/CloudProjekatSistemUcitavanjaElektricnogBrojila/Broker"),
+                        new ServicePartitionKey(index1 % partitionsNumber1));
+                    while (!tempPublish)
+                    {
+                        tempPublish = await servicePartitionClient1.InvokeWithRetryAsync(client => client.Channel.PublishHistory(currentMeters));
+                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                    }
+                    index1++;
                 }
-                index1++;
+            }catch(Exception e)
+            {
+                string err = e.Message;
+                ServiceEventSource.Current.Message(err);
             }
             
         }
